@@ -13,18 +13,18 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
-
 import customtkinter as ctk
 import socket
 import threading
 import os
 from tkinter import filedialog, messagebox
 import time
+from pathlib import Path  # <--- Added this for cross-platform path handling
 
 # --- CONFIGURATION ---
 UDP_PORT = 5000
 TCP_PORT = 5001
-BUFFER_SIZE = 1024 * 64  # Increased to 64KB for faster large file transfers
+BUFFER_SIZE = 1024 * 64
 SEPARATOR = "<SEPARATOR>"
 
 ctk.set_appearance_mode("Dark")
@@ -165,32 +165,23 @@ class SeamlessApp(ctk.CTk):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Bind to 0.0.0.0 to catch ALL traffic
         try:
             sock.bind(('0.0.0.0', UDP_PORT))
         except Exception as e:
             print(f"Failed to bind UDP: {e}")
             return
-
-        print(f"DEBUG: Listening for UDP on port {UDP_PORT}")
         
         while True:
             try:
                 data, addr = sock.recvfrom(1024)
                 msg = data.decode()
                 
-                # --- DEBUG PRINT ---
-                print(f"DEBUG: Packet received from {addr}: {msg}")
-                # -------------------
-
                 if msg.startswith("HERE:"):
                     name = msg.split(":")[1]
-                    # Allow self-discovery for testing, or filter if needed
                     self.peers[addr[0]] = name
                     self.after(0, self.update_peer_list)
                         
                 elif msg.startswith("DISCOVER"):
-                    # Reply to discovery
                     if self.server_running:
                         rs = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                         rs.sendto(f"HERE:{self.username}".encode(), (addr[0], UDP_PORT))
@@ -270,7 +261,17 @@ class SeamlessApp(ctk.CTk):
             self.log_box.insert("end", f"Start: {filename} ({filesize/1024/1024:.2f} MB)\n")
             self.progress_bar.set(0)
             
-            save_path = os.path.join(os.getcwd(), f"received_{filename}")
+            # --- MODIFIED SECTION: Get Downloads Folder ---
+            # Path.home() gets user directory (e.g. C:\Users\Bob or /home/bob)
+            # / "Downloads" appends the folder name safely for any OS
+            downloads_path = Path.home() / "Downloads"
+            
+            # Create the path if it somehow doesn't exist
+            downloads_path.mkdir(parents=True, exist_ok=True)
+            
+            # Construct final path
+            save_path = downloads_path / filename
+            # -----------------------------------------------
             
             received_total = 0
             with open(save_path, "wb") as f:
@@ -280,17 +281,18 @@ class SeamlessApp(ctk.CTk):
                     f.write(bytes_read)
                     received_total += len(bytes_read)
                     
-                    # Update Progress (Throttle updates to prevent freeze)
+                    # Update Progress
                     progress = received_total / filesize
                     self.progress_bar.set(progress)
                     self.lbl_status.configure(text=f"Receiving: {int(progress*100)}%")
-                    self.update_idletasks() # Keep UI responsive
+                    self.update_idletasks()
 
-            self.log_box.insert("end", f"Saved: {save_path}\n")
+            self.log_box.insert("end", f"Saved to Downloads: {filename}\n")
             self.lbl_status.configure(text="Transfer Complete")
             client_socket.close()
         except Exception as e:
             print(f"Error: {e}")
+            self.log_box.insert("end", f"Error: {e}\n")
 
 if __name__ == "__main__":
     app = SeamlessApp()
