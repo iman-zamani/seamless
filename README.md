@@ -1,12 +1,12 @@
 ## Seamless
 
+<p align="center">
+  <img src="Assets/seamless.png" width="300" alt="Seamless App Icon">
+</p>
+
 Seamless is a straightforward, open-source file transfer utility designed to solve the common problem of sending files instantly between different operating systems on a local network.
 
 It is built for users and developers who prefer a simple, cable-free alternative to moving files between mobile and desktop platforms.
-
-<p align="left">
-  <img src="Assets/seamless.png" width="400" alt="Seamless App Icon">
-</p>
 
 ---
 
