@@ -53,7 +53,30 @@ If connection fails, verify the following:
   * **Firewall:**
       * **Windows:** Allow `python.exe` through the firewall.
       * **macOS:** Grant permissions in **System Settings \> Privacy & Security \> Local Network**.
+### Installation on macOS
 
+**Note:** This app is not signed with an Apple Developer Certificate (which costs $99/year). Because of this, macOS Gatekeeper may block the app from opening the first time.
+
+### If you see "App is damaged" or "Can't be opened":
+
+**For macOS Sequoia (15) and newer:**
+1. Open the app. If you see a "Move to Trash" or "Cancel" popup, click **Done** or **Cancel** (do not move to trash).
+2. Go to **System Settings** > **Privacy & Security**.
+3. Scroll to the bottom to the **Security** section.
+4. You will see a message: *"seamless.app was blocked..."*. Click **Open Anyway**.
+5. Enter your password and click **Open**. 
+   *(You only need to do this once. The app will open normally from now on.)*
+
+**For older macOS versions:**
+1. **Right-click** (or Control+click) the `seamless.app` icon.
+2. Select **Open** from the menu.
+3. Click **Open** in the popup warning.
+
+### Terminal Solution
+If the above does not work, you can manually whitelist the app using your terminal:
+```bash
+xattr -d com.apple.quarantine /Applications/seamless.app
+```
 -----
 
 ## Development Setup
@@ -84,6 +107,7 @@ Open the `Android/` directory in **Android Studio**. Sync Gradle files and run o
   * **Transfer:** TCP Stream on port `5001`.
       * **Header:** `filename<SEPARATOR>filesize\n`
       * **Body:** Binary file data.
+
 
 -----
 
