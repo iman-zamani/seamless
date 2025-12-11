@@ -13,15 +13,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 import customtkinter as ctk
 import socket
 import threading
 import os
 from tkinter import filedialog, messagebox
 import time
-from pathlib import Path  # <--- Added this for cross-platform path handling
+from pathlib import Path
 
-# --- CONFIGURATION ---
 UDP_PORT = 5000
 TCP_PORT = 5001
 BUFFER_SIZE = 1024 * 64
@@ -36,18 +36,15 @@ class SeamlessApp(ctk.CTk):
         self.title("Seamless Desktop")
         self.geometry("600x550")
         
-        # State
         self.username = f"User_{os.getpid()}"
         self.my_ip = self.get_local_ip()
         self.peers = {} 
         self.selected_files = []
         self.server_running = False
 
-        # --- UI LAYOUT ---
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
-        # Header
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.header_frame.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
         
@@ -61,7 +58,6 @@ class SeamlessApp(ctk.CTk):
         self.btn_update_user = ctk.CTkButton(self.header_frame, text="Set", width=50, command=self.update_username)
         self.btn_update_user.pack(side="right")
 
-        # Main Content Area
         self.main_frame = ctk.CTkFrame(self, corner_radius=10)
         self.main_frame.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
 
@@ -78,6 +74,25 @@ class SeamlessApp(ctk.CTk):
         except:
             return "127.0.0.1"
 
+    def get_all_interfaces(self):
+        try:
+            return socket.gethostbyname_ex(socket.gethostname())[2]
+        except:
+            return [self.get_local_ip()]
+
+    def send_broadcast_packet(self, message):
+        interfaces = self.get_all_interfaces()
+        for ip in interfaces:
+            if ip.startswith("127."): 
+                continue
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    s.bind((ip, 0)) 
+                    s.sendto(message, ('255.255.255.255', UDP_PORT))
+            except:
+                pass
+
     def update_username(self):
         self.username = self.entry_username.get()
         messagebox.showinfo("Info", f"Username updated to {self.username}")
@@ -86,7 +101,6 @@ class SeamlessApp(ctk.CTk):
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-    # --- VIEWS ---
     def show_menu(self):
         self.clear_main_frame()
         self.server_running = False
@@ -109,7 +123,6 @@ class SeamlessApp(ctk.CTk):
         self.file_list_scroll = ctk.CTkScrollableFrame(self.main_frame, height=100)
         self.file_list_scroll.pack(fill="x", padx=20)
 
-        # Scan Button
         btn_scan = ctk.CTkButton(self.main_frame, text="Scan Network", command=self.scan_network)
         btn_scan.pack(pady=20)
 
@@ -142,7 +155,6 @@ class SeamlessApp(ctk.CTk):
         lbl_sub = ctk.CTkLabel(self.main_frame, text=f"Visible as: {self.username}\nIP: {self.my_ip}", text_color="gray")
         lbl_sub.pack(pady=5)
 
-        # Progress Bar
         self.progress_bar = ctk.CTkProgressBar(self.main_frame, width=400)
         self.progress_bar.set(0)
         self.progress_bar.pack(pady=20)
@@ -159,12 +171,9 @@ class SeamlessApp(ctk.CTk):
         threading.Thread(target=self.udp_broadcaster, daemon=True).start()
         threading.Thread(target=self.tcp_server, daemon=True).start()
 
-    # --- NETWORKING ---
-
     def udp_listener(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        
         try:
             sock.bind(('0.0.0.0', UDP_PORT))
         except Exception as e:
@@ -185,24 +194,22 @@ class SeamlessApp(ctk.CTk):
                     if self.server_running:
                         rs = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                         rs.sendto(f"HERE:{self.username}".encode(), (addr[0], UDP_PORT))
-            except Exception as e:
-                print(f"UDP Loop Error: {e}")
+            except:
+                pass
 
     def udp_broadcaster(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         while self.server_running:
             try:
-                sock.sendto(f"HERE:{self.username}".encode(), ('<broadcast>', UDP_PORT))
+                msg = f"HERE:{self.username}".encode()
+                self.send_broadcast_packet(msg)
                 time.sleep(2)
             except: break
 
     def scan_network(self):
         self.peers = {}
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            sock.sendto(f"DISCOVER:{self.username}".encode(), ('<broadcast>', UDP_PORT))
+            msg = f"DISCOVER:{self.username}".encode()
+            threading.Thread(target=self.send_broadcast_packet, args=(msg,), daemon=True).start()
         except Exception as e:
             messagebox.showerror("Network Error", str(e))
 
@@ -247,7 +254,6 @@ class SeamlessApp(ctk.CTk):
 
     def handle_incoming_file(self, client_socket):
         try:
-            # Read header
             header_bytes = b""
             while True:
                 b = client_socket.recv(1)
@@ -260,14 +266,10 @@ class SeamlessApp(ctk.CTk):
             
             self.log_box.insert("end", f"Start: {filename} ({filesize/1024/1024:.2f} MB)\n")
             self.progress_bar.set(0)
+            
             downloads_path = Path.home() / "Downloads"
-            
-            # Create the path if it somehow doesn't exist
             downloads_path.mkdir(parents=True, exist_ok=True)
-            
-            # Construct final path
             save_path = downloads_path / filename
-            # -----------------------------------------------
             
             received_total = 0
             with open(save_path, "wb") as f:
@@ -277,7 +279,6 @@ class SeamlessApp(ctk.CTk):
                     f.write(bytes_read)
                     received_total += len(bytes_read)
                     
-                    # Update Progress
                     progress = received_total / filesize
                     self.progress_bar.set(progress)
                     self.lbl_status.configure(text=f"Receiving: {int(progress*100)}%")
