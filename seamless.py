@@ -67,12 +67,15 @@ class SeamlessApp(ctk.CTk):
     def get_local_ip(self):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
+            s.connect(("10.255.255.255", 1))
             ip = s.getsockname()[0]
             s.close()
             return ip
         except:
-            return "127.0.0.1"
+            try:
+                return socket.gethostbyname(socket.gethostname())
+            except:
+                return "127.0.0.1"
 
     def get_all_interfaces(self):
         try:
